@@ -1,0 +1,25 @@
+[package]
+name = "bevy_platformer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14", default-features = false, features = [
+    "bevy_winit",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_asset",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_core_pipeline",
+    "bevy_gizmos",
+    "default_font",
+    "png",
+    "x11",
+] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
