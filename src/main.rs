@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::audio::{Volume, PlaybackSettings};
 
 const WINDOW_WIDTH: f32 = 1200.0;
 const WINDOW_HEIGHT: f32 = 800.0;
@@ -52,6 +53,27 @@ struct LivesText;
 #[derive(Component)]
 struct LevelText;
 
+// Audio Events
+#[derive(Event)]
+struct PlaySoundEvent {
+    sound_type: SoundType,
+}
+
+#[derive(Clone, Copy)]
+enum SoundType {
+    Jump,
+    Collect,
+    Death,
+}
+
+// Audio Resources
+#[derive(Resource)]
+struct GameAudio {
+    jump_sound: Handle<AudioSource>,
+    collect_sound: Handle<AudioSource>,
+    death_sound: Handle<AudioSource>,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -63,12 +85,14 @@ fn main() {
             ..default()
         }))
         .init_resource::<GameState>()
+        .add_event::<PlaySoundEvent>()
         .add_systems(Startup, (
             setup_camera, 
             setup_player, 
             setup_platforms, 
             setup_fruits.after(setup_platforms), 
-            setup_ui
+            setup_ui,
+            setup_audio
         ))
         .add_systems(Update, (
             player_movement,
@@ -78,6 +102,7 @@ fn main() {
             check_fruit_collection,
             check_player_death,
             update_ui,
+            play_sounds,
         ))
         .run();
 }
@@ -136,6 +161,17 @@ fn setup_ui(mut commands: Commands) {
             ..default()
         }
     );
+}
+
+fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Load audio files from the assets folder
+    let game_audio = GameAudio {
+        jump_sound: asset_server.load("jump.wav"),
+        collect_sound: asset_server.load("collect.wav"),
+        death_sound: asset_server.load("death.wav"),
+    };
+    
+    commands.insert_resource(game_audio);
 }
 
 fn setup_player(mut commands: Commands) {
@@ -387,6 +423,7 @@ fn setup_fruits(mut commands: Commands, query: Query<(Entity, &Transform), (With
 fn player_movement(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<(&mut Velocity, &Grounded), With<Player>>,
+    mut sound_events: EventWriter<PlaySoundEvent>,
 ) {
     if let Ok((mut velocity, grounded)) = player_query.get_single_mut() {
         // Horizontal movement - works in air and on ground
@@ -405,6 +442,7 @@ fn player_movement(
         // Jumping - only when grounded
         if (keyboard_input.just_pressed(KeyCode::Space) || keyboard_input.just_pressed(KeyCode::ArrowUp) || keyboard_input.just_pressed(KeyCode::KeyW)) && grounded.0 {
             velocity.y = JUMP_SPEED;
+            sound_events.send(PlaySoundEvent { sound_type: SoundType::Jump });
         }
     }
 }
@@ -524,6 +562,7 @@ fn check_fruit_collection(
     fruit_query: Query<(Entity, &Transform), (With<Fruit>, Without<Player>)>,
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     mut game_state: ResMut<GameState>,
+    mut sound_events: EventWriter<PlaySoundEvent>,
 ) {
     if let Ok((mut player_transform, mut velocity)) = player_query.get_single_mut() {
         for (fruit_entity, fruit_transform) in fruit_query.iter() {
@@ -531,6 +570,9 @@ fn check_fruit_collection(
             
             // Check if player is close enough to collect the fruit (collision detection)
             if distance < 30.0 {
+                // Play collect sound
+                sound_events.send(PlaySoundEvent { sound_type: SoundType::Collect });
+                
                 // Remove the fruit
                 commands.entity(fruit_entity).despawn();
                 
@@ -589,10 +631,14 @@ fn check_player_death(
     mut commands: Commands,
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     fruit_query: Query<Entity, With<Fruit>>,
+    mut sound_events: EventWriter<PlaySoundEvent>,
 ) {
     if let Ok((mut player_transform, mut velocity)) = player_query.get_single_mut() {
         // Check if player fell below screen (more generous threshold)
         if player_transform.translation.y < -WINDOW_HEIGHT / 2.0 {
+            // Play death sound
+            sound_events.send(PlaySoundEvent { sound_type: SoundType::Death });
+            
             // Decrease lives
             if game_state.lives > 0 {
                 game_state.lives -= 1;
@@ -627,5 +673,32 @@ fn check_player_death(
                 setup_fruits_with_seed(commands, platform_query, random_seed + 42);
             }
         }
+    }
+}
+
+fn play_sounds(
+    mut commands: Commands,
+    mut sound_events: EventReader<PlaySoundEvent>,
+    game_audio: Res<GameAudio>,
+) {
+    for event in sound_events.read() {
+        let (audio_source, volume, pitch_text) = match event.sound_type {
+            SoundType::Jump => (game_audio.jump_sound.clone(), 0.5, "Jump sound!"),
+            SoundType::Collect => (game_audio.collect_sound.clone(), 0.6, "Collect sound!"),
+            SoundType::Death => (game_audio.death_sound.clone(), 0.4, "Death sound!"),
+        };
+
+        // Spawn AudioBundle to play the sound
+        commands.spawn(AudioBundle {
+            source: audio_source,
+            settings: PlaybackSettings {
+                mode: bevy::audio::PlaybackMode::Despawn,
+                volume: Volume::new(volume),
+                ..default()
+            },
+        });
+
+        // Also print to console for debugging
+        println!("🎵 {}", pitch_text);
     }
 }
