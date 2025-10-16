@@ -426,7 +426,7 @@ fn setup_fruits_with_seed(mut commands: Commands, query: Query<(Entity, &Transfo
     use bevy::math::Vec3;
     
     // Collect all platform positions (excluding the starting platform at y=100.0 where player spawns)
-    let mut platform_positions: Vec<Vec3> = query
+    let platform_positions: Vec<Vec3> = query
         .iter()
         .map(|(_, transform)| transform.translation)
         .filter(|pos| pos.y != 100.0) // Exclude starting platform
@@ -604,14 +604,14 @@ fn generate_random_platforms(commands: &mut Commands) {
     }
 }
 
-fn setup_fruits(mut commands: Commands, query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>) {
+fn setup_fruits(mut commands: Commands, _query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>) {
     // Use current time for initial random seed
     let initial_seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64;
         
-    setup_fruits_with_seed(commands, query, initial_seed + 99);
+    setup_fruits_with_seed(commands, _query, initial_seed + 99);
 }
 
 fn player_movement(
@@ -753,13 +753,13 @@ fn check_collisions(
 fn check_fruit_collection(
     mut commands: Commands,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
-    fruit_query: Query<(Entity, &Transform), (With<Fruit>, Without<Player>)>,
-    platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
+    _fruit_query: Query<(Entity, &Transform), (With<Fruit>, Without<Player>)>,
+    _platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     mut game_state: ResMut<GameState>,
     mut sound_events: EventWriter<PlaySoundEvent>,
 ) {
     if let Ok((mut player_transform, mut velocity)) = player_query.get_single_mut() {
-        for (fruit_entity, fruit_transform) in fruit_query.iter() {
+        for (fruit_entity, fruit_transform) in _fruit_query.iter() {
             let distance = player_transform.translation.distance(fruit_transform.translation);
             
             // Check if player is close enough to collect the fruit (collision detection)
@@ -774,7 +774,7 @@ fn check_fruit_collection(
                 game_state.level += 1;
                 
                 // Remove all existing platforms
-                for (platform_entity, _) in platform_query.iter() {
+                for (platform_entity, _) in _platform_query.iter() {
                     commands.entity(platform_entity).despawn();
                 }
                 
@@ -793,7 +793,7 @@ fn check_fruit_collection(
                 generate_random_platforms_with_seed(&mut commands, random_seed);
                 
                 // Spawn new fruit  
-                setup_fruits_with_seed(commands, platform_query, random_seed + 42);
+                setup_fruits_with_seed(commands, _platform_query, random_seed + 42);
                 break; // Only collect one fruit per frame
             }
         }
@@ -822,7 +822,7 @@ fn update_ui(
 fn check_player_death(
     mut game_state: ResMut<GameState>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
-    mut commands: Commands,
+    commands: Commands,
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     fruit_query: Query<Entity, With<Fruit>>,
     mut sound_events: EventWriter<PlaySoundEvent>,
@@ -965,7 +965,7 @@ fn setup_game_entities(
 }
 
 fn setup_fruits_when_ready(
-    mut commands: Commands,
+    commands: Commands,
     app_state: Res<AppState>,
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     fruit_query: Query<Entity, With<Fruit>>,
