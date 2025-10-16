@@ -53,6 +53,16 @@ struct LivesText;
 #[derive(Component)]
 struct LevelText;
 
+// Menu Components
+#[derive(Component)]
+struct MainMenuUI;
+
+#[derive(Component)]
+struct GameOverUI;
+
+#[derive(Component)]
+struct GameUI;
+
 // Audio Events
 #[derive(Event)]
 struct PlaySoundEvent {
@@ -74,6 +84,20 @@ struct GameAudio {
     death_sound: Handle<AudioSource>,
 }
 
+// Game States
+#[derive(Resource, Debug, Clone, PartialEq, Eq)]
+enum AppState {
+    MainMenu,
+    InGame,
+    GameOver,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::MainMenu
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -84,26 +108,28 @@ fn main() {
             }),
             ..default()
         }))
+        .init_resource::<AppState>()
         .init_resource::<GameState>()
         .add_event::<PlaySoundEvent>()
-        .add_systems(Startup, (
-            setup_camera, 
-            setup_player, 
-            setup_platforms, 
-            setup_fruits.after(setup_platforms), 
-            setup_ui,
-            setup_audio
-        ))
+        .add_systems(Startup, (setup_camera, setup_audio, setup_main_menu))
         .add_systems(Update, (
-            player_movement,
-            apply_gravity,
-            apply_velocity,
-            check_collisions,
-            check_fruit_collection,
-            check_player_death,
-            update_ui,
+            handle_main_menu_input.run_if(resource_equals(AppState::MainMenu)),
+            handle_game_over_input.run_if(resource_equals(AppState::GameOver)),
+            setup_game_entities.run_if(resource_equals(AppState::InGame)),
+            setup_fruits_when_ready.run_if(resource_equals(AppState::InGame)),
+            handle_state_transitions,
+            (
+                player_movement,
+                apply_gravity,
+                apply_velocity,
+                check_collisions,
+                check_fruit_collection,
+                check_player_death,
+                update_ui,
+            ).run_if(resource_equals(AppState::InGame)),
             play_sounds,
         ))
+        
         .run();
 }
 
@@ -111,7 +137,7 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-fn setup_ui(mut commands: Commands) {
+fn setup_game_ui(mut commands: Commands) {
     // Lives text as 2D world text (top left)
     commands.spawn((
         Text2dBundle {
@@ -127,6 +153,7 @@ fn setup_ui(mut commands: Commands) {
             ..default()
         },
         LivesText,
+        GameUI,
     ));
 
     // Level text as 2D world text (top right)
@@ -144,10 +171,11 @@ fn setup_ui(mut commands: Commands) {
             ..default()
         },
         LevelText,
+        GameUI,
     ));
 
     // Game title in center top
-    commands.spawn(
+    commands.spawn((
         Text2dBundle {
             text: Text::from_section(
                 "BEVY PLATFORMER",
@@ -159,8 +187,9 @@ fn setup_ui(mut commands: Commands) {
             ),
             transform: Transform::from_translation(Vec3::new(0.0, WINDOW_HEIGHT / 2.0 - 50.0, 10.0)),
             ..default()
-        }
-    );
+        },
+        GameUI,
+    ));
 }
 
 fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -172,6 +201,93 @@ fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     };
     
     commands.insert_resource(game_audio);
+}
+
+fn setup_main_menu(mut commands: Commands) {
+    // Main title
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "BEVY PLATFORMER",
+                TextStyle {
+                    font_size: 80.0,
+                    color: Color::srgb(1.0, 0.5, 0.0), // Orange
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, 150.0, 10.0)),
+            ..default()
+        },
+        MainMenuUI,
+    ));
+
+    // Subtitle
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "AI-Generated Game",
+                TextStyle {
+                    font_size: 30.0,
+                    color: Color::srgb(0.8, 0.8, 0.8), // Light gray
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, 100.0, 10.0)),
+            ..default()
+        },
+        MainMenuUI,
+    ));
+
+    // Start instruction
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "Press SPACE to Start",
+                TextStyle {
+                    font_size: 40.0,
+                    color: Color::srgb(0.0, 1.0, 0.0), // Green
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, -50.0, 10.0)),
+            ..default()
+        },
+        MainMenuUI,
+    ));
+
+    // Controls instruction
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "Controls: WASD/Arrow Keys to move, SPACE to jump",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::srgb(0.7, 0.7, 1.0), // Light blue
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, -150.0, 10.0)),
+            ..default()
+        },
+        MainMenuUI,
+    ));
+
+    // Objective instruction
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "Collect orange fruits to advance levels! You have 3 lives.",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::srgb(1.0, 1.0, 0.0), // Yellow
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, -200.0, 10.0)),
+            ..default()
+        },
+        MainMenuUI,
+    ));
 }
 
 fn setup_player(mut commands: Commands) {
@@ -342,6 +458,84 @@ fn setup_fruits_with_seed(mut commands: Commands, query: Query<(Entity, &Transfo
             ..default()
         },
         Fruit,
+    ));
+}
+
+fn setup_game_over(mut commands: Commands, game_state: Res<GameState>) {
+    // Game Over title
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "GAME OVER",
+                TextStyle {
+                    font_size: 80.0,
+                    color: Color::srgb(1.0, 0.0, 0.0), // Red
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, 150.0, 10.0)),
+            ..default()
+        },
+        GameOverUI,
+    ));
+
+    // Final stats
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                format!("Final Level: {}", game_state.level),
+                TextStyle {
+                    font_size: 40.0,
+                    color: Color::srgb(1.0, 1.0, 0.0), // Yellow
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, 50.0, 10.0)),
+            ..default()
+        },
+        GameOverUI,
+    ));
+
+    // Restart instruction
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                "Press R to Restart or ESC to return to Main Menu",
+                TextStyle {
+                    font_size: 30.0,
+                    color: Color::srgb(0.0, 1.0, 0.0), // Green
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, -50.0, 10.0)),
+            ..default()
+        },
+        GameOverUI,
+    ));
+
+    // Achievement message based on level reached
+    let achievement_text = if game_state.level >= 10 {
+        "Amazing! You're a platforming master!"
+    } else if game_state.level >= 5 {
+        "Great job! You're getting good at this!"
+    } else {
+        "Good try! Practice makes perfect!"
+    };
+
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                achievement_text,
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::srgb(0.8, 0.8, 1.0), // Light blue
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec3::new(0.0, -150.0, 10.0)),
+            ..default()
+        },
+        GameOverUI,
     ));
 }
 
@@ -632,6 +826,7 @@ fn check_player_death(
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     fruit_query: Query<Entity, With<Fruit>>,
     mut sound_events: EventWriter<PlaySoundEvent>,
+    mut app_state: ResMut<AppState>,
 ) {
     if let Ok((mut player_transform, mut velocity)) = player_query.get_single_mut() {
         // Check if player fell below screen (more generous threshold)
@@ -649,28 +844,9 @@ fn check_player_death(
             velocity.x = 0.0;
             velocity.y = 0.0;
             
-            // If no lives left, reset the game
+            // If no lives left, go to game over screen
             if game_state.lives == 0 {
-                // Reset game state
-                game_state.lives = 3;
-                game_state.level = 1;
-                
-                // Remove all platforms and fruits, then regenerate
-                for (platform_entity, _) in platform_query.iter() {
-                    commands.entity(platform_entity).despawn();
-                }
-                for fruit_entity in fruit_query.iter() {
-                    commands.entity(fruit_entity).despawn();
-                }
-                
-                // Generate new level with random layout
-                let random_seed = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_nanos() as u64;
-                    
-                generate_random_platforms_with_seed(&mut commands, random_seed);
-                setup_fruits_with_seed(commands, platform_query, random_seed + 42);
+                *app_state = AppState::GameOver;
             }
         }
     }
@@ -700,5 +876,169 @@ fn play_sounds(
 
         // Also print to console for debugging
         println!("🎵 {}", pitch_text);
+    }
+}
+
+// Menu Input Systems
+fn handle_main_menu_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut app_state: ResMut<AppState>,
+    mut commands: Commands,
+    main_menu_query: Query<Entity, With<MainMenuUI>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        // Cleanup main menu
+        for entity in main_menu_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        *app_state = AppState::InGame;
+    }
+}
+
+fn handle_game_over_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut app_state: ResMut<AppState>,
+    mut game_state: ResMut<GameState>,
+    mut commands: Commands,
+    game_over_query: Query<Entity, With<GameOverUI>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyR) {
+        // Cleanup game over screen
+        for entity in game_over_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        // Reset game state and restart
+        game_state.lives = 3;
+        game_state.level = 1;
+        *app_state = AppState::InGame;
+    } else if keyboard_input.just_pressed(KeyCode::Escape) {
+        // Cleanup game over screen
+        for entity in game_over_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        // Return to main menu
+        *app_state = AppState::MainMenu;
+    }
+}
+
+// Game Setup System
+fn setup_game_entities(
+    mut commands: Commands,
+    app_state: Res<AppState>,
+    player_query: Query<Entity, With<Player>>,
+    platform_query: Query<Entity, With<Platform>>,
+    fruit_query: Query<Entity, With<Fruit>>,
+    ui_query: Query<Entity, With<GameUI>>,
+) {
+    // Only set up if we're in game and no entities exist yet
+    if *app_state == AppState::InGame 
+        && player_query.is_empty() 
+        && platform_query.is_empty() 
+        && ui_query.is_empty() {
+        
+        // Spawn player
+        commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::srgb(0.0, 0.5, 1.0),
+                    custom_size: Some(Vec2::new(50.0, 50.0)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+                ..default()
+            },
+            Player,
+            Velocity { x: 0.0, y: 0.0 },
+            Grounded(false),
+        ));
+
+        // Generate initial platforms
+        let initial_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        generate_random_platforms_with_seed(&mut commands, initial_seed);
+
+        // Setup UI
+        setup_game_ui(commands);
+    }
+}
+
+fn setup_fruits_when_ready(
+    mut commands: Commands,
+    app_state: Res<AppState>,
+    platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
+    fruit_query: Query<Entity, With<Fruit>>,
+) {
+    // Only setup fruits if we're in game, have platforms, but no fruits
+    if *app_state == AppState::InGame 
+        && !platform_query.is_empty() 
+        && fruit_query.is_empty() {
+        
+        let initial_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        setup_fruits_with_seed(commands, platform_query, initial_seed + 99);
+    }
+}
+
+fn handle_state_transitions(
+    commands: Commands,
+    app_state: Res<AppState>,
+    game_state: Res<GameState>,
+    main_menu_query: Query<Entity, With<MainMenuUI>>,
+    game_over_query: Query<Entity, With<GameOverUI>>,
+) {
+    if app_state.is_changed() {
+        match *app_state {
+            AppState::MainMenu => {
+                // Clean up any existing game over UI and set up main menu
+                if main_menu_query.is_empty() {
+                    setup_main_menu(commands);
+                }
+            }
+            AppState::GameOver => {
+                // Set up game over screen
+                if game_over_query.is_empty() {
+                    setup_game_over(commands, game_state);
+                }
+            }
+            AppState::InGame => {
+                // Game setup is handled by setup_game_entities system
+            }
+        }
+    }
+}
+
+// Cleanup Systems
+fn cleanup_main_menu(
+    mut commands: Commands,
+    query: Query<Entity, With<MainMenuUI>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn cleanup_game(
+    mut commands: Commands,
+    player_query: Query<Entity, With<Player>>,
+    platform_query: Query<Entity, With<Platform>>,
+    fruit_query: Query<Entity, With<Fruit>>,
+    ui_query: Query<Entity, With<GameUI>>,
+) {
+    // Remove all game entities
+    for entity in player_query.iter().chain(platform_query.iter()).chain(fruit_query.iter()).chain(ui_query.iter()) {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn cleanup_game_over(
+    mut commands: Commands,
+    query: Query<Entity, With<GameOverUI>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
     }
 }
