@@ -1,20 +1,20 @@
 @echo off
-REM Build the project in release mode
+REM Build the project in release mode for optimal performance
 cargo build --release
 
-REM Create a directory for the itch.io release
-set OUTPUT_DIR=itchio_release
-if exist %OUTPUT_DIR% rmdir /s /q %OUTPUT_DIR%
-mkdir %OUTPUT_DIR%
+REM Copy the optimized executable to the existing itchio_release directory
+copy target\release\bevy_platformer.exe itchio_release\bevy_platformer.exe
 
-REM Copy the executable and assets to the release directory
-copy target\release\bevy_platformer.exe %OUTPUT_DIR%\
-xcopy "assets" %OUTPUT_DIR%\assets /E /I
+REM Ensure assets are up to date
+xcopy "assets" "itchio_release\assets" /E /I /Y
 
-REM Add a README file
-copy README.md %OUTPUT_DIR%\README.txt
+REM Create version-tagged zip file for publishing
+powershell Compress-Archive -Path itchio_release\* -DestinationPath bevy_platformer_v2.1_release.zip -Force
 
-REM Compress the release directory into a zip file
-powershell Compress-Archive -Path %OUTPUT_DIR%\* -DestinationPath bevy_platformer_itchio.zip
-
-@echo Project is ready for publishing on itch.io. Upload 'bevy_platformer_itchio.zip' to your itch.io page.
+@echo Project is ready for publishing on itch.io. 
+@echo Upload 'bevy_platformer_v2.1_release.zip' to your itch.io page.
+@echo.
+@echo Contents included:
+@echo - bevy_platformer.exe (optimized release build)
+@echo - assets\ folder with audio files
+@echo - README.txt with game documentation

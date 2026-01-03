@@ -461,7 +461,7 @@ fn setup_fruits_with_seed(mut commands: Commands, query: Query<(Entity, &Transfo
     ));
 }
 
-fn setup_game_over(mut commands: Commands, game_state: Res<GameState>) {
+fn setup_game_over(commands: &mut Commands, game_state: Res<GameState>) {
     // Game Over title
     commands.spawn((
         Text2dBundle {
@@ -539,7 +539,13 @@ fn setup_game_over(mut commands: Commands, game_state: Res<GameState>) {
     ));
 }
 
-fn generate_random_platforms(commands: &mut Commands) {
+fn generate_random_platforms(commands: &mut Commands, platform_query: Query<Entity, With<Platform>>) {
+    // Remove existing platforms
+    for entity in platform_query.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // Generate new platforms
     use bevy::math::Vec3;
     use std::collections::HashSet;
     
@@ -740,13 +746,6 @@ fn check_collisions(
         } else if player_transform.translation.x > half_width - 25.0 {
             player_transform.translation.x = half_width - 25.0;
         }
-        
-        // Reset if player falls too far
-        if player_transform.translation.y < -WINDOW_HEIGHT {
-            player_transform.translation = Vec3::new(0.0, 200.0, 0.0);
-            velocity.x = 0.0;
-            velocity.y = 0.0;
-        }
     }
 }
 
@@ -821,32 +820,51 @@ fn update_ui(
 
 fn check_player_death(
     mut game_state: ResMut<GameState>,
-    mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
-    commands: Commands,
+    mut player_query: Query<(Entity, &Transform), With<Player>>,
+    mut commands: Commands,
     platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
     fruit_query: Query<Entity, With<Fruit>>,
     mut sound_events: EventWriter<PlaySoundEvent>,
     mut app_state: ResMut<AppState>,
 ) {
-    if let Ok((mut player_transform, mut velocity)) = player_query.get_single_mut() {
+    if let Ok((player_entity, player_transform)) = player_query.get_single() {
         // Check if player fell below screen (more generous threshold)
         if player_transform.translation.y < -WINDOW_HEIGHT / 2.0 {
             // Play death sound
             sound_events.send(PlaySoundEvent { sound_type: SoundType::Death });
-            
+
             // Decrease lives
             if game_state.lives > 0 {
                 game_state.lives -= 1;
             }
-            
-            // Reset player position
-            player_transform.translation = Vec3::new(0.0, 200.0, 0.0);
-            velocity.x = 0.0;
-            velocity.y = 0.0;
-            
+
+            // Despawn the player
+            commands.entity(player_entity).despawn();
+
             // If no lives left, go to game over screen
             if game_state.lives == 0 {
                 *app_state = AppState::GameOver;
+
+                // Clear fruits but keep platforms
+                for entity in fruit_query.iter() {
+                    commands.entity(entity).despawn();
+                }
+            } else {
+                // Respawn the player at the starting position
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::srgb(0.0, 0.5, 1.0),
+                            custom_size: Some(Vec2::new(50.0, 50.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+                        ..default()
+                    },
+                    Player,
+                    Velocity { x: 0.0, y: 0.0 },
+                    Grounded(false),
+                ));
             }
         }
     }
@@ -901,12 +919,44 @@ fn handle_game_over_input(
     mut game_state: ResMut<GameState>,
     mut commands: Commands,
     game_over_query: Query<Entity, With<GameOverUI>>,
+    platform_query: Query<Entity, With<Platform>>,
+    fruit_query: Query<Entity, With<Fruit>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         // Cleanup game over screen
         for entity in game_over_query.iter() {
             commands.entity(entity).despawn();
         }
+        // Remove existing platforms and fruits
+        for entity in platform_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        for entity in fruit_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        // Generate new platforms
+        let random_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        generate_random_platforms_with_seed(&mut commands, random_seed);
+
+        // Spawn the player at the starting position
+        commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::srgb(0.0, 0.5, 1.0),
+                    custom_size: Some(Vec2::new(50.0, 50.0)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+                ..default()
+            },
+            Player,
+            Velocity { x: 0.0, y: 0.0 },
+            Grounded(false),
+        ));
+
         // Reset game state and restart
         game_state.lives = 3;
         game_state.level = 1;
@@ -984,11 +1034,12 @@ fn setup_fruits_when_ready(
 }
 
 fn handle_state_transitions(
-    commands: Commands,
+    mut commands: Commands,
     app_state: Res<AppState>,
     game_state: Res<GameState>,
     main_menu_query: Query<Entity, With<MainMenuUI>>,
     game_over_query: Query<Entity, With<GameOverUI>>,
+    platform_query: Query<(Entity, &Transform), (With<Platform>, Without<Player>)>,
 ) {
     if app_state.is_changed() {
         match *app_state {
@@ -1001,7 +1052,7 @@ fn handle_state_transitions(
             AppState::GameOver => {
                 // Set up game over screen
                 if game_over_query.is_empty() {
-                    setup_game_over(commands, game_state);
+                    setup_game_over(&mut commands, game_state);
                 }
             }
             AppState::InGame => {
