@@ -1,0 +1,337 @@
+---
+# Bevy Platformer Game - Complete Metadata Specification
+# Single-prompt game recreation specification
+
+game:
+  name: "Bevy Platformer"
+  type: "2D Platformer"
+  engine: "Bevy"
+  language: "Rust"
+  version: "2.0"
+  description: "Feature-rich 2D platformer with audio, lives system, and infinite level progression"
+
+project:
+  name: "bevy_platformer"
+  structure:
+    - "Cargo.toml"
+    - "src/main.rs"
+    - "assets/"
+    - "assets/jump.wav"
+    - "assets/collect.wav" 
+    - "assets/death.wav"
+
+dependencies:
+  bevy:
+    version: "0.14"
+    features:
+      - "bevy_winit"
+      - "bevy_render"
+      - "bevy_sprite"
+      - "bevy_asset"
+      - "bevy_text"
+      - "bevy_ui"
+      - "bevy_core_pipeline"
+      - "bevy_gizmos"
+      - "bevy_audio"
+      - "wav"
+      - "default_font"
+      - "png"
+      - "x11"
+
+optimization:
+  dev:
+    opt_level: 1
+  dependencies:
+    opt_level: 3
+
+window:
+  width: 1200
+  height: 800
+  title: "Bevy Platformer"
+
+physics:
+  player_speed: 300.0
+  jump_speed: 700.0
+  gravity: 2000.0
+  air_control: 1.0
+
+entities:
+  player:
+    size: 
+      width: 50
+      height: 50
+    color: "#0080FF"  # Blue
+    spawn_position: [0, 200, 0]
+    
+  platforms:
+    color: "#808080"  # Gray
+    height: 20
+    width_range: [120, 220]
+    starting_platform:
+      position: [0, 100, 0]
+      width: 200
+    generation:
+      count_range: [6, 10]
+      min_distance: 80
+      min_vertical_gap: 60
+      min_gap_for_player: 80  # 50 + 30 extra space
+      
+  fruits:
+    size:
+      width: 25
+      height: 25
+    color: "#FF8000"  # Orange
+    spawn_height_offset: 12.5  # Above platform surface
+    collection_radius: 30
+
+components:
+  - name: "Player"
+  - name: "Platform"
+    fields:
+      - "width: f32"
+      - "height: f32"
+  - name: "Fruit"
+  - name: "Velocity"
+    fields:
+      - "x: f32"
+      - "y: f32"
+  - name: "Grounded"
+    fields:
+      - "bool"
+
+ui_components:
+  - "LivesText"
+  - "LevelText"
+  - "MainMenuUI"
+  - "GameOverUI"
+  - "GameUI"
+
+resources:
+  game_state:
+    lives: 3
+    level: 1
+  app_state:
+    states: ["MainMenu", "InGame", "GameOver"]
+    default: "MainMenu"
+  game_audio:
+    jump_sound: "assets/jump.wav"
+    collect_sound: "assets/collect.wav"
+    death_sound: "assets/death.wav"
+
+audio:
+  sound_types:
+    jump:
+      volume: 0.5
+      trigger: "space_key_when_grounded"
+    collect:
+      volume: 0.6
+      trigger: "fruit_collection"
+    death:
+      volume: 0.4
+      trigger: "player_falls_below_screen"
+  playback_mode: "despawn_after_completion"
+
+game_states:
+  main_menu:
+    ui_elements:
+      - text: "BEVY PLATFORMER"
+        font_size: 80
+        color: "#FF8000"  # Orange
+        position: [0, 150, 10]
+      - text: "AI-Generated Game"
+        font_size: 30
+        color: "#CCCCCC"  # Light gray
+        position: [0, 100, 10]
+      - text: "Press SPACE to Start"
+        font_size: 40
+        color: "#00FF00"  # Green
+        position: [0, -50, 10]
+      - text: "Controls: WASD/Arrow Keys to move, SPACE to jump"
+        font_size: 25
+        color: "#B3B3FF"  # Light blue
+        position: [0, -150, 10]
+      - text: "Collect orange fruits to advance levels! You have 3 lives."
+        font_size: 25
+        color: "#FFFF00"  # Yellow
+        position: [0, -200, 10]
+    input:
+      space: "transition_to_ingame"
+
+  in_game:
+    ui_elements:
+      - text: "Lives: {lives}"
+        font_size: 50
+        color: "#FFFF00"  # Yellow
+        position: [-450, 350, 10]  # Top-left
+      - text: "Level: {level}"
+        font_size: 50
+        color: "#00FFFF"  # Cyan
+        position: [450, 350, 10]   # Top-right
+      - text: "BEVY PLATFORMER"
+        font_size: 40
+        color: "#FF8000"  # Orange
+        position: [0, 350, 10]     # Top-center
+    controls:
+      movement: ["WASD", "Arrow_Keys"]
+      jump: ["Space", "W", "Up_Arrow"]
+      air_control: true
+
+  game_over:
+    ui_elements:
+      - text: "GAME OVER"
+        font_size: 80
+        color: "#FF0000"  # Red
+        position: [0, 150, 10]
+      - text: "Final Level: {level}"
+        font_size: 40
+        color: "#FFFF00"  # Yellow
+        position: [0, 50, 10]
+      - text: "Press R to Restart or ESC to return to Main Menu"
+        font_size: 30
+        color: "#00FF00"  # Green
+        position: [0, -50, 10]
+      - text: "{achievement_message}"
+        font_size: 25
+        color: "#B3B3FF"  # Light blue
+        position: [0, -150, 10]
+    achievement_messages:
+      level_10_plus: "Amazing! You're a platforming master!"
+      level_5_plus: "Great job! You're getting good at this!"
+      default: "Good try! Practice makes perfect!"
+    input:
+      r: "restart_game"
+      esc: "return_to_main_menu"
+
+gameplay_systems:
+  player_movement:
+    horizontal:
+      keys: ["A", "D", "Left", "Right"]
+      speed: 300.0
+      air_control_multiplier: 1.0
+    vertical:
+      jump_keys: ["Space", "W", "Up"]
+      jump_speed: 700.0
+      requires_grounded: true
+      gravity: 2000.0
+
+  collision_detection:
+    player_bounds: [25, 25]  # Half width/height
+    platform_collision:
+      overlap_resolution: true
+      grounded_tolerance: 5.0
+    boundary_checking:
+      wrap_horizontal: false
+      reset_on_fall: true
+      reset_position: [0, 200, 0]
+
+  level_progression:
+    fruit_collection:
+      detection_radius: 30.0
+      effects:
+        - "increment_level"
+        - "play_collect_sound"
+        - "despawn_fruit"
+        - "regenerate_platforms"
+        - "spawn_new_fruit"
+        - "reset_player_position"
+    platform_generation:
+      seed_source: "system_time + level"
+      algorithm: "linear_congruential_generator"
+      spatial_rules:
+        avoid_starting_area: 120  # Radius from spawn
+        minimum_spacing: 80
+        grid_snapping: 100
+      
+  lives_system:
+    starting_lives: 3
+    death_conditions:
+      - "fall_below_screen"
+    death_effects:
+      - "play_death_sound"
+      - "decrement_lives"
+      - "reset_player_position"
+    game_over_condition: "lives_equals_zero"
+
+rendering:
+  camera: "2d_default"
+  sprites:
+    player:
+      type: "colored_rectangle"
+      color: "#0080FF"
+      size: [50, 50]
+    platforms:
+      type: "colored_rectangle"
+      color: "#808080"
+      size: "[dynamic_width, 20]"
+    fruits:
+      type: "colored_rectangle"
+      color: "#FF8000"
+      size: [25, 25]
+  text:
+    positioning: "world_space_2d"
+    z_index: 10
+
+technical_implementation:
+  architecture: "bevy_ecs"
+  system_scheduling:
+    startup: ["setup_camera", "setup_audio", "setup_main_menu"]
+    update_conditional:
+      main_menu: ["handle_main_menu_input"]
+      in_game: 
+        - "setup_game_entities"
+        - "setup_fruits_when_ready"
+        - "player_movement"
+        - "apply_gravity"
+        - "apply_velocity"
+        - "check_collisions"
+        - "check_fruit_collection"
+        - "check_player_death"
+        - "update_ui"
+      game_over: ["handle_game_over_input"]
+    always: ["handle_state_transitions", "play_sounds"]
+
+  state_management:
+    transitions:
+      cleanup_previous_state: true
+      spawn_new_entities: true
+    entity_lifecycle:
+      conditional_spawning: true
+      automatic_cleanup: true
+
+  random_generation:
+    algorithm: "lcg"  # Linear Congruential Generator
+    seed_strategy: "time_based_with_level_offset"
+    consistency: "deterministic_per_level"
+
+file_structure:
+  main_file: "src/main.rs"
+  single_file_architecture: true
+  total_lines: ~1044
+  sections:
+    - "imports_and_constants"
+    - "component_definitions"
+    - "resource_definitions"
+    - "main_function_and_app_setup"
+    - "setup_systems"
+    - "gameplay_systems"
+    - "ui_systems"
+    - "audio_systems"
+    - "state_management_systems"
+    - "utility_functions"
+
+compilation:
+  command: "cargo run"
+  requirements:
+    - "rust_installed"
+    - "cargo_toml_configured"
+    - "assets_folder_with_wav_files"
+  immediate_execution: true
+  error_handling: "comprehensive"
+
+prompt_instruction: |
+  Create a complete 2D platformer game using this metadata specification. 
+  Generate all code in a single main.rs file following Bevy ECS patterns.
+  Implement every system, component, and feature described in this metadata.
+  Ensure the game compiles and runs immediately after creating the Cargo.toml 
+  and assets folder with the specified WAV files. Use proper Rust syntax and 
+  Bevy 0.14 API conventions throughout the implementation.

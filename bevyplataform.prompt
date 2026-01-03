@@ -1,0 +1,107 @@
+Complete Game Creation Prompt
+Create a 2D Platformer Game using Rust with Bevy Engine with the following comprehensive specifications:
+
+Project Structure & Dependencies
+Project name: bevy_platformer
+Cargo.toml: Use Bevy 0.14 with features: bevy_winit, bevy_render, bevy_sprite, bevy_asset, bevy_text, bevy_ui, bevy_core_pipeline, bevy_gizmos, bevy_audio, wav, default_font, png, x11
+Optimization: opt-level = 1 for dev, opt-level = 3 for dependencies
+Game Constants & Core Systems
+Window: 1200x800 pixels, title "Bevy Platformer"
+Player: 50x50 blue sprite, speed 300.0, jump speed 700.0, gravity 2000.0, full air control
+Platforms: Gray rectangles with random widths (120-220px), height 20px
+Fruits: Orange 25x25 squares that spawn on platform tops
+Game Components & Resources
+Create these Bevy components and resources:
+
+Components: Player, Platform{width, height}, Fruit, Velocity{x, y}, Grounded(bool)
+UI Components: LivesText, LevelText, MainMenuUI, GameOverUI, GameUI
+Resources: GameState{lives: 3, level: 1}, AppState enum (MainMenu, InGame, GameOver)
+Audio: GameAudio resource with jump.wav, collect.wav, death.wav sound handles
+Game States & Menus
+Main Menu Screen:
+
+Orange title "BEVY PLATFORMER" (80px font)
+Subtitle "AI-Generated Game" (30px gray)
+"Press SPACE to Start" (40px green)
+Controls instruction: "WASD/Arrow Keys to move, SPACE to jump" (25px blue)
+Objective: "Collect orange fruits to advance levels! You have 3 lives." (25px yellow)
+Game Over Screen:
+
+Red "GAME OVER" title (80px)
+Final level display (40px yellow)
+"Press R to Restart or ESC to return to Main Menu" (30px green)
+Achievement messages based on level reached (25px blue)
+In-Game UI:
+
+Lives counter (top-left, 50px yellow): "Lives: X"
+Level counter (top-right, 50px cyan): "Level: X"
+Game title (top-center, 40px orange): "BEVY PLATFORMER"
+Core Gameplay Systems
+Player Movement:
+
+WASD/Arrow keys for movement with full air control
+Space/W/Up for jumping (only when grounded)
+Horizontal velocity: input * PLAYER_SPEED * air_control_multiplier
+Vertical velocity: Jump sets to JUMP_SPEED, gravity applies continuously
+Physics & Collisions:
+
+Apply gravity (2000.0) and velocity each frame
+Platform collision detection with proper edge resolution
+Player bounds checking (window boundaries)
+Grounded detection with 5px tolerance
+Player resets to (0, 200) if falling below screen
+Platform Generation:
+
+Always spawn starting platform at (0, 100) with 200px width
+Generate 6-10 random platforms using time-based seeds
+Smart spacing: minimum 80px distance, 60px vertical gaps
+Platforms use pseudo-random positioning within window bounds
+Avoid overlapping starting area (120px radius from spawn)
+Fruit Collection & Level Progression:
+
+Spawn one fruit per level on random platform (excluding starting platform)
+Fruit positioned 12.5px above platform surface
+Collection distance: 30px radius from player center
+On collection: play sound, increment level, regenerate everything with new seed
+Player resets to starting position with zero velocity
+Lives & Death System:
+
+Player loses life when falling below screen bottom
+Play death sound, reset position, continue if lives remain
+Game over when lives reach 0, transition to game over screen
+Audio System
+Load WAV files: jump.wav, collect.wav, death.wav from assets folder
+Event-driven audio with PlaySoundEvent{sound_type: SoundType}
+Sound types: Jump (0.5 volume), Collect (0.6 volume), Death (0.4 volume)
+Despawn audio after playback completion
+State Management & Input
+Main Menu: Space to start game
+Game Over: R to restart, ESC to main menu
+State transitions clean up previous UI elements
+Game entities spawn only when entering InGame state
+Fruits spawn after platforms are ready
+Technical Implementation Details
+Use Bevy's ECS with proper system scheduling
+Systems run conditionally based on AppState resource
+Collision detection uses AABB with overlap resolution
+Platform generation uses Linear Congruential Generator for consistency
+UI uses 2D world text positioning instead of UI nodes
+Game state persists through state transitions
+Assets Folder Structure
+Create assets directory with three WAV audio files:
+
+jump.wav - Played when player jumps
+collect.wav - Played when collecting fruits
+death.wav - Played when player dies
+Visual Design
+Player: Blue (#0080FF) 50x50 square
+Platforms: Gray (#808080) rectangles, varying widths
+Fruits: Orange (#FF8000) 25x25 squares
+Background: Default black
+UI text: Various colors (yellow, cyan, orange, green, red) for different information types
+Game Loop & Win Condition
+Infinite progression system - each fruit collection advances to next level
+Increasing difficulty through randomized platform layouts
+Achievement system in game over screen based on final level reached
+No explicit win condition - focus on high score/level achievement
+Additional Requirements: Generate all code in a single main.rs file with proper Rust/Bevy syntax, include comprehensive error handling, and ensure the game compiles and runs immediately with cargo run after creating the Cargo.toml file and assets folder.
